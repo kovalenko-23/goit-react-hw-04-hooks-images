@@ -1,47 +1,49 @@
 import { Overlay, Modal } from "./Modal.styled";
 import { createPortal } from "react-dom";
-import { Component } from "react";
-import PropTypes from 'prop-types'
+import { useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 
+const modalRoot = document.querySelector("#modal-root");
 
-const modalRoot = document.querySelector('#modal-root');
-
-class ModalWindow extends Component {
-    componentDidMount() {
-        window.addEventListener('keydown', this.handleKeyDown)
-    }
-
-    componentWillUnmount() {
-        window.removeEventListener('keydown', this.handleKeyDown);
-    }
-
-  handleKeyDown = e => {
-      if (e.code === 'Escape' && this.props.state === true) {
-        this.props.handleModal();
+function ModalWindow({ image, handleModal, state }) {
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.code === "Escape" && state === true) {
+        handleModal();
       }
+    },
+    [handleModal, state]
+  );
+
+  useEffect(() => {
+    if (state === true) {
+      window.addEventListener("keydown", handleKeyDown);
     }
-    
-    handleBackDropClick = e => {
-        if (e.currentTarget === e.target) {
-            this.props.handleModal();
-        }
+
+    if (state === false) {
+      window.removeEventListener("keydown", handleKeyDown);
     }
-    
-    render() {
-        return createPortal(
-            <Overlay onClick={this.handleBackDropClick}>
-                <Modal>
-                    <img src={this.props.image} alt="" />
-                </Modal>
-            </Overlay>, modalRoot
-        )
+  }, [handleKeyDown, state]);
+
+  const handleBackDropClick = (e) => {
+    if (e.currentTarget === e.target) {
+      handleModal();
     }
+  };
+
+  return createPortal(
+    <Overlay onClick={handleBackDropClick}>
+      <Modal>
+        <img src={image} alt="" />
+      </Modal>
+    </Overlay>,
+    modalRoot
+  );
 }
 
 ModalWindow.propTypes = {
-    state: PropTypes.bool.isRequired,
-    handleModal: PropTypes.func.isRequired,
-}
+  state: PropTypes.bool.isRequired,
+  handleModal: PropTypes.func.isRequired,
+};
 
-export default ModalWindow
-
+export default ModalWindow;

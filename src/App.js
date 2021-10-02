@@ -1,4 +1,4 @@
-import { Component } from "react";
+import { useState, useEffect, useRef } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { Wrapper } from "./App.styled";
 import ModalWindow from "./Components/Modal/Modal";
@@ -21,122 +21,117 @@ const Status = {
   REJECTED: "rejected",
 };
 
-class App extends Component {
-  state = {
-    images: [],
-    searchInput: null,
-    page: 1,
-    requestStatus: Status.IDLE,
-    showModal: false,
-    largeImage: null,
-  };
+function App() {
+  const [images, setImages] = useState([]);
+  const [searchInput, setSearchInput] = useState(null);
+  const [page, setPage] = useState(1);
+  const [requestStatus, setRequestStatus] = useState(Status.IDLE);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImage, setLargeImage] = useState(null);
 
-  async componentDidUpdate(_, prevState) {
-    const { searchInput, page } = this.state;
-    const prevSearch = prevState.searchInput;
+  const prevSearch = useRef(null);
+  const prevPage = useRef(1);
 
-    if (prevSearch !== searchInput) {
-      try {
-        this.setState({ requestStatus: Status.PENDING, images: [], page: 1 });
-        const result = await fetchGallery(searchInput, page);
-        const images = result.hits;
-        const totalImages = result.total;
-        const totalhits = images.length;
-        this.setState({ images });
-
-        if (totalhits === 0) {
-          this.setState({ requestStatus: Status.REJECTED });
-          toast(`Sorry, nothing have found by "${searchInput}"`, {
-            icon: <FaFrown fill={"orange"} />,
-          });
-          return;
-        }
-
-        toast.success(`You have found ${totalImages} images`);
-
-        if (totalhits < 12) {
-          this.setState({ requestStatus: Status.REJECTED });
-        } else {
-          this.setState({ requestStatus: Status.RESOLVED });
-        }
-      } catch (error) {
-        console.log(error.message);
-      }
-    }
-
-    if (prevSearch === searchInput && prevState.page !== page) {
-      try {
-        this.setState({ requestStatus: Status.PENDING });
-        const result = await fetchGallery(searchInput, page);
-        const images = result.hits;
-        const totalhits = images.length;
-        this.setState((prevState) => ({
-          images: [...prevState.images, ...images],
-        }));
-        if (totalhits < 12) {
-          this.setState({ requestStatus: Status.REJECTED });
-        } else {
-          this.setState({ requestStatus: Status.RESOLVED });
-        }
-      } catch (error) {
-        console.log(error.message);
-      }
-    }
-  }
-
-  handleSearchInput = (value) => {
-    if (value === this.state.searchInput) {
+  useEffect(() => {
+    if (!searchInput) {
       return;
     }
 
+    if (prevSearch.current !== searchInput) {
+      setRequestStatus(Status.PENDING);
+      setImages([]);
+      setPage(1);
+      fetchGallery(searchInput, prevPage.current)
+        .then((images) => {
+          setImages(images.hits);
+          const totalImages = images.total;
+          const totalhits = images.hits.length;
+
+          if (totalhits === 0) {
+            setRequestStatus(Status.REJECTED);
+            toast(`Sorry, nothing have found by "${searchInput}"`, {
+              icon: <FaFrown fill={"orange"} />,
+            });
+            return;
+          }
+
+          toast.success(`You have found ${totalImages} images`);
+
+          if (totalhits < 12) {
+            setRequestStatus(Status.REJECTED);
+          } else {
+            setRequestStatus(Status.RESOLVED);
+          }
+        })
+        .catch((error) => {
+          console.log(error.message);
+        });
+    }
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (prevPage.current !== page) {
+      setRequestStatus(Status.PENDING);
+      fetchGallery(searchInput, page)
+        .then((images) => {
+          setImages((prev) => [...prev, ...images.hits]);
+          const totalhits = images.hits.length;
+
+          if (totalhits < 12) {
+            setRequestStatus(Status.REJECTED);
+          } else {
+            setRequestStatus(Status.RESOLVED);
+          }
+        })
+        .catch((error) => {
+          console.log(error.message);
+        });
+    }
+  }, [searchInput, page]);
+
+  const handleSearchInput = (value) => {
+    if (value === searchInput) {
+      return;
+    }
     if (value.trim("") === "") {
       toast.error("Please, enter your querry");
     } else {
-      this.setState({ searchInput: value, page: 1 });
+      setSearchInput(value);
+      setPage(1);
     }
   };
 
-  handleLoadMore = (e) => {
+  const handleLoadMore = (e) => {
     e.preventDefault();
-    this.setState((prevState) => ({
-      page: prevState.page + 1,
-    }));
+    setPage((prev) => prev + 1);
   };
 
-  handleModal = (largeImage) => {
-    if (this.state.largeImage !== largeImage) {
-      this.setState({
-        largeImage,
-      });
+  const handleModal = (largePicture) => {
+    if (largeImage !== largePicture) {
+      setLargeImage(largePicture);
     }
-
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
+    setShowModal(!showModal);
   };
 
-  render() {
-    const { showModal, largeImage } = this.state;
-    const shouldShowButton = this.state.requestStatus === Status.RESOLVED;
-    const showSpinner = this.state.requestStatus === Status.PENDING;
+  const shouldShowButton = requestStatus === Status.RESOLVED;
+  const showSpinner = requestStatus === Status.PENDING;
 
-    return (
-      <Wrapper>
-        <Toaster />
-        <Searchbar onSubmit={this.handleSearchInput} />
-        <Gallery onImageClick={this.handleModal} images={this.state.images} />
-        {shouldShowButton && <LoadMoreBtn onClick={this.handleLoadMore} />}
-        {showSpinner && <Spinner />}
-        {showModal && (
-          <ModalWindow
-            image={largeImage}
-            handleModal={this.handleModal}
-            state={showModal}
-          />
-        )}
-      </Wrapper>
-    );
-  }
+  return (
+    <Wrapper>
+      <Toaster />
+      <Searchbar onSubmit={handleSearchInput} />
+      <Gallery onImageClick={handleModal} images={images} />
+      {shouldShowButton && <LoadMoreBtn onClick={handleLoadMore} />}
+      {showSpinner && <Spinner />}
+      {showModal && (
+        <ModalWindow
+          image={largeImage}
+          handleModal={handleModal}
+          state={showModal}
+        />
+      )}
+    </Wrapper>
+  );
 }
 
 export default App;
